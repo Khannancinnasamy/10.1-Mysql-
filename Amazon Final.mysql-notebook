@@ -1,0 +1,140 @@
+{
+    "type": "MySQLNotebook",
+    "version": "1.0",
+    "caption": "DB Notebook 1",
+    "content": "CREATE DATABASE IF NOT EXISTS AmazonDB;\r\nUSE AmazonDB;\r\n\r\nCREATE TABLE Users (\r\n    user_id         INT AUTO_INCREMENT PRIMARY KEY,\r\n    name            VARCHAR(100) NOT NULL,\r\n    email           VARCHAR(150) NOT NULL UNIQUE,\r\n    registered_date DATE NOT NULL,\r\n    membership      ENUM('Basic', 'Prime') DEFAULT 'Basic'\r\n);\r\n\r\nCREATE TABLE Products (\r\n    product_id INT AUTO_INCREMENT PRIMARY KEY,\r\n    name       VARCHAR(200) NOT NULL,\r\n    price      DECIMAL(10,2) NOT NULL,\r\n    category   VARCHAR(100) NOT NULL,\r\n    stock      INT NOT NULL\r\n);\r\n\r\nCREATE TABLE Orders (\r\n    order_id     INT AUTO_INCREMENT PRIMARY KEY,\r\n    user_id      INT,\r\n    order_date   DATE NOT NULL,\r\n    total_amount DECIMAL(10,2) NOT NULL,\r\n    FOREIGN KEY (user_id) REFERENCES Users(user_id)\r\n);\r\n\r\nCREATE TABLE OrderDetails (\r\n    order_details_id INT AUTO_INCREMENT PRIMARY KEY,\r\n    order_id         INT,\r\n    product_id       INT,\r\n    quantity         INT NOT NULL,\r\n    FOREIGN KEY (order_id)   REFERENCES Orders(order_id),\r\n    FOREIGN KEY (product_id) REFERENCES Products(product_id)\r\n);\r\n\r\nUSE AmazonDB;\r\n\r\nINSERT INTO Users (name, email, registered_date, membership) VALUES\r\n('Alice Johnson', 'alice.j@example.com', '2024-01-15', 'Prime'),\r\n('Bob Smith', 'bob.s@example.com', '2024-02-01', 'Basic'),\r\n('Charlie Brown', 'charlie.b@example.com', '2024-03-10', 'Prime'),\r\n('Daisy Ridley', 'daisy.r@example.com', '2024-04-12', 'Basic');\r\n\r\nINSERT INTO Products (name, price, category, stock) VALUES\r\n('Echo Dot', 49.99, 'Electronics', 120),\r\n('Kindle Paperwhite', 129.99, 'Books', 50),\r\n('Fire Stick', 39.99, 'Electronics', 80),\r\n('Yoga Mat', 19.99, 'Fitness', 200),\r\n('Wireless Mouse', 24.99, 'Electronics', 150);\r\n\r\nINSERT INTO Orders (user_id, order_date, total_amount) VALUES\r\n(1, '2024-05-01', 79.98),\r\n(1, '2024-05-01', 79.98),\r\n(2, '2024-05-03', 129.99),\r\n(1, '2024-05-04', 49.99),\r\n(3, '2024-05-05', 24.99);\r\n\r\nINSERT INTO OrderDetails (order_id, product_id, quantity) VALUES\r\n(1, 3, 2),  -- Fire Stick x2   = 79.98\r\n(2, 3, 2),  -- Fire Stick x2   = 79.98\r\n(3, 2, 1),  -- Kindle x1       = 129.99\r\n(4, 1, 1),  -- Echo Dot x1     = 49.99\r\n(5, 5, 1);  -- Wireless Mouse  = 24.99\r\n\r\n-- 1.List all customers who have made purchases of more than $80 --\r\n\r\nSELECT DISTINCT u.user_id, u.name, u.email\r\nFROM Users u\r\nJOIN Orders o ON o.user_id = u.user_id\r\nWHERE o.total_amount > 80;\r\n\r\n\r\nSELECT u.user_id, u.name, u.email, SUM(o.total_amount) AS total_spent\r\nFROM Users u\r\nJOIN Orders o ON o.user_id = u.user_id\r\nGROUP BY u.user_id, u.name, u.email\r\nHAVING SUM(o.total_amount) > 80;\r\n\r\n\r\nSELECT o.order_id, o.order_date, o.total_amount, u.name, u.email\r\nFROM Orders o\r\nJOIN Users u ON u.user_id = o.user_id\r\nWHERE o.order_date >= CURDATE() - INTERVAL 280 DAY;\r\n\r\n\r\nSELECT o.order_id, o.order_date, o.total_amount, u.name, u.email\r\nFROM Orders o\r\nJOIN Users u ON u.user_id = o.user_id\r\nWHERE o.order_date >= CURDATE() - INTERVAL 1000 DAY;\r\n\r\n\r\n\r\n\r\n\r\n\r\n-- 3.Find the average product price for each category --\r\n\r\nSELECT category, ROUND(AVG(price), 2) AS avg_price\r\nFROM Products\r\nGROUP BY category;\r\n\r\n-- 4.List all customers who have purchased a product from the category Electronics --\r\n\r\nSELECT DISTINCT u.user_id, u.name, u.email\r\nFROM Users u\r\nJOIN Orders o ON o.user_id = u.user_id\r\nJOIN OrderDetails d ON d.order_id = o.order_id\r\nJOIN Products p ON p.product_id = d.product_id\r\nWHERE p.category = 'Electronics';\r\n\r\n\r\n-- 5.Fnd the total number of products sold and the total revenue generated for each product --\r\n\r\nSELECT p.product_id,\r\n       p.name,\r\n       COALESCE(SUM(d.quantity), 0)             AS total_units_sold,\r\n       COALESCE(SUM(d.quantity * p.price), 0)   AS total_revenue\r\nFROM Products p\r\nLEFT JOIN OrderDetails d ON d.product_id = p.product_id\r\nGROUP BY p.product_id, p.name;\r\n\r\n-- 6.Update the price of all products in the Books category, increasing it by 10% --\r\n\r\nSET SQL_SAFE_UPDATES = 0;\r\n\r\nUPDATE Products\r\nSET price = ROUND(price * 1.10, 2)\r\nWHERE category = 'Books';\r\n\r\n-- 7.Remove all orders that were placed before 2020 --\r\n\r\nDELETE FROM OrderDetails\r\nWHERE order_id IN (SELECT order_id FROM Orders WHERE order_date < '2020-01-01');\r\n\r\nDELETE FROM Orders\r\nWHERE order_date < '2020-01-01';\r\n\r\n-- 8.Write a query to fetch the order details, including customer name, product name, and quantity, for orders placed on 2024-05-01--\r\n\r\nSELECT o.order_id,\r\n       o.order_date,\r\n       u.name AS customer_name,\r\n       p.name AS product_name,\r\n       d.quantity\r\nFROM Orders o\r\nJOIN Users u         ON u.user_id = o.user_id\r\nJOIN OrderDetails d  ON d.order_id = o.order_id\r\nJOIN Products p      ON p.product_id = d.product_id\r\nWHERE o.order_date = '2024-05-01';\r\n\r\n\r\n-- 9.Fetch all customers and the total number of orders they have placed --\r\n\r\nSELECT u.user_id,\r\n       u.name,\r\n       u.email,\r\n       COUNT(o.order_id) AS total_orders\r\nFROM Users u\r\nLEFT JOIN Orders o ON o.user_id = u.user_id\r\nGROUP BY u.user_id, u.name, u.email;\r\n\r\n\r\n-- 10.Retrieve the average rating for all products in the Electronics category --\r\n\r\nSELECT product_id, name, category, rating FROM Products;\r\n\r\n\r\n-- 11.List all customers who purchased more than 1 units of any product, including the product name and total quantity purchased. --\r\n\r\nSELECT u.user_id,\r\n       u.name AS customer_name,\r\n       p.name AS product_name,\r\n       SUM(d.quantity) AS total_quantity\r\nFROM Users u\r\nJOIN Orders o        ON o.user_id = u.user_id\r\nJOIN OrderDetails d  ON d.order_id = o.order_id\r\nJOIN Products p      ON p.product_id = d.product_id\r\nGROUP BY u.user_id, u.name, p.product_id, p.name\r\nHAVING SUM(d.quantity) > 1;\r\n\r\n\r\n-- 12.Find the total revenue generated by each category along with the category name --\r\n\r\nSELECT p.category,\r\n       SUM(d.quantity * p.price) AS total_revenue\r\nFROM Products p\r\nJOIN OrderDetails d ON d.product_id = p.product_id\r\nGROUP BY p.category;\r\n\r\n",
+    "options": {
+        "tabSize": 4,
+        "insertSpaces": true,
+        "indentSize": 4,
+        "defaultEOL": "CRLF",
+        "trimAutoWhitespace": true
+    },
+    "viewState": {
+        "cursorState": [
+            {
+                "inSelectionMode": false,
+                "selectionStart": {
+                    "lineNumber": 188,
+                    "column": 51
+                },
+                "position": {
+                    "lineNumber": 188,
+                    "column": 51
+                }
+            }
+        ],
+        "viewState": {
+            "scrollLeft": 0,
+            "firstPosition": {
+                "lineNumber": 173,
+                "column": 1
+            },
+            "firstPositionDeltaTop": -16
+        },
+        "contributionsState": {
+            "editor.contrib.folding": {},
+            "editor.contrib.wordHighlighter": false
+        }
+    },
+    "contexts": [
+        {
+            "state": {
+                "start": 1,
+                "end": 191,
+                "language": "mysql",
+                "result": {
+                    "type": "resultIds",
+                    "list": [
+                        "e0c07c33-5141-4b20-9c68-02936f9327fe"
+                    ]
+                },
+                "currentHeight": 352,
+                "currentSet": 1,
+                "statements": [
+                    {
+                        "delimiter": ";",
+                        "span": {
+                            "start": 0,
+                            "length": 5679
+                        },
+                        "contentStart": 0,
+                        "state": 0
+                    }
+                ]
+            },
+            "data": [
+                {
+                    "tabId": "635176b0-4902-40e2-e2f1-806dd450c4c2",
+                    "resultId": "e0c07c33-5141-4b20-9c68-02936f9327fe",
+                    "rows": [
+                        {
+                            "0": "Electronics",
+                            "1": "38.32"
+                        },
+                        {
+                            "0": "Books",
+                            "1": "173.02"
+                        },
+                        {
+                            "0": "Fitness",
+                            "1": "19.99"
+                        }
+                    ],
+                    "columns": [
+                        {
+                            "title": "category",
+                            "field": "0",
+                            "dataType": {
+                                "type": 17,
+                                "characterMaximumLength": 65535,
+                                "flags": [
+                                    "BINARY",
+                                    "ASCII",
+                                    "UNICODE"
+                                ],
+                                "needsQuotes": true,
+                                "parameterFormatType": "OneOrZero"
+                            },
+                            "inPK": false,
+                            "nullable": false,
+                            "autoIncrement": false
+                        },
+                        {
+                            "title": "avg_price",
+                            "field": "1",
+                            "dataType": {
+                                "type": 10,
+                                "flags": [
+                                    "UNSIGNED",
+                                    "ZEROFILL"
+                                ],
+                                "numericPrecision": 65,
+                                "numericScale": 30,
+                                "parameterFormatType": "TwoOrOneOrZero",
+                                "synonyms": [
+                                    "FIXED",
+                                    "NUMERIC",
+                                    "DEC"
+                                ]
+                            },
+                            "inPK": false,
+                            "nullable": false,
+                            "autoIncrement": false
+                        }
+                    ],
+                    "executionInfo": {
+                        "text": "OK, 3 records retrieved in 1.048ms"
+                    },
+                    "totalRowCount": 3,
+                    "hasMoreRows": false,
+                    "currentPage": 0,
+                    "index": 15,
+                    "sql": "\n\n\n\n\n\n\n-- 3.Find the average product price for each category --\n\nSELECT category, ROUND(AVG(price), 2) AS avg_price\nFROM Products\nGROUP BY category;",
+                    "updatable": false,
+                    "fullTableName": ""
+                }
+            ]
+        }
+    ]
+}
